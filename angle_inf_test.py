@@ -8,9 +8,11 @@ import math
 # joint pairs , angles
 JOINT_CONSTANTS = {
         "1": [("12-14", "14-16"), (-90, -90)],
-        "2": [("12-14", "14-16", "16-22"), (180, 180, -160)], # 2 and 3 are very tricky, thumb should be at 90 but reasons
+        "2": [("12-14", "14-16", "16-22"), (180, 180, -160)], # 2 and 3 are very tricky, thumb should be at 90 but reasons (still very buggy)
         "3": [("12-14", "14-16", "16-22"), (180, 180, 160)],
-        "23": [("12-14", "14-16"), (-120, -115)] # values picked blindly
+        "13": [("12-14", "14-16", "11-13", "13-15"), (180, 180, 160)], #TODO:
+        "14": [("12-14", "14-16", "11-13", "13-15"), (180, 180, 160)],
+        "23": [("12-14", "14-16"), (-120, -115)] # values picked blindly (good)
         }
 
 ANGLE_THRESHOLD = 15 # degrees
@@ -30,15 +32,12 @@ def check_requirements(req: list, calc_angles: list) -> bool:
 
     conds : bool = []
     for pair, angle in zip(req[0], angles):
-    # for pair in req[0]:
-        # for angle in angles:
-            try:
-                conds.append(calc_angles[pair] < (angle + ANGLE_THRESHOLD) and calc_angles[pair] > (angle - ANGLE_THRESHOLD))
-                print(f"ANGLES {pair}: {calc_angles[pair]}\n")
-            except:
-                print(f"Angle for {pair} not found")
-                return False
-
+        try:
+            conds.append(calc_angles[pair] < (angle + ANGLE_THRESHOLD) and calc_angles[pair] > (angle - ANGLE_THRESHOLD))
+            print(f"ANGLES {pair}: {calc_angles[pair]}\n")
+        except:
+            print(f"Angle for {pair} not found")
+            return False
     if all(conds):
         return True
     else:
@@ -67,11 +66,10 @@ print("Starting live prediction loop...")
 while cap.isOpened():
     success, frame = cap.read()
     if not success: break
-        
     # Process with MediaPipe
     image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     results = pose.process(image_rgb)
-    
+
     current_angles = {}
     if results.pose_landmarks:
         landmark_list = results.pose_landmarks.landmark
@@ -89,24 +87,13 @@ while cap.isOpened():
                     current_angles[f"{idx}-{idx+4}"] = calculate_angle(next_landmark, landmark)
                     next_landmark = landmark_list[idx+6]
                     current_angles[f"{idx}-{idx+6}"] = calculate_angle(next_landmark, landmark)
-
-
     else:
         print("Person is lost")
-        # current_landmarks = [0.0] * (33 * 4) # Fallback if person is lost
 
     predicted_gesture = make_decision(current_angles)
-    # simple logic (1 sign)
-    try:
-        # print(f"ANGLES 12-14: {current_angles['12-14']}\n")
-        print(f"ANGLES 14-16: {current_angles['14-16']}\n")
-    except:
-        print("Bibki")
-     
 
-        
     cv2.putText(frame, predicted_gesture, (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-    cv2.imshow('Pi Gesture Recognition', frame)
+    cv2.imshow('Gesture Recognition', frame)
     if cv2.waitKey(1) & 0xFF == 27:
         break
 

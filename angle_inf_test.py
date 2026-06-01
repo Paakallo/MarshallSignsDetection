@@ -5,12 +5,35 @@ import pandas as pd
 import time
 import math
 
-# --- Configuration ---
-MODEL_PATH = "gesture_rf_model.joblib"
+# joint pairs , angles
+JOINT_CONSTANTS = {
+        "1": [("12-14", "14-16"), (-90)]
+        }
+
+ANGLE_THRESHOLD = 15 # degrees
+
+def make_decision(calc_angles: list):
+    for sign in JOINT_CONSTANTS.keys():
+        if (check_requirements(JOINT_CONSTANTS[sign])):
+            return sign
+    return "Waiting"
+
+def check_requirements(req: list, calc_angles: list) -> bool:
+    if len(req[1]) == 1:
+        angle = req[1][0]
+
+    conds : bool = []
+    for pair in req[0]:
+        conds.append(calc_angles[pair] < (angle + ANGLE_THRESHOLD) and calc_angles[pair] > (angle - ANGLE_THRESHOLD))
+        if all(conds):
+            return True
+        else:
+            return False
+
+
 
 main_joint_idxs = [12, 14, 16, 18, 20, 22, 11, 13, 15, 17, 19, 21]
 
-# 2. Initialize MediaPipe Pose Lite for the Pi
 mp_pose = mp.solutions.pose
 pose = mp_pose.Pose(model_complexity=0, min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
@@ -18,9 +41,7 @@ cap = cv2.VideoCapture(0)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
 
-# Queue to hold the coordinates of the last N frames
-frame_buffer = []
-predicted_gesture = "Waiting..."
+predicted_gesture = "Waiting"
 
 print("Starting live prediction loop...")
 while cap.isOpened():
@@ -55,10 +76,20 @@ while cap.isOpened():
                     current_angles[f"{idx}-{idx+4}"] = angle
 
     else:
-        current_landmarks = [0.0] * (33 * 4) # Fallback if person is lost
+        print("Person is lost")
+        # current_landmarks = [0.0] * (33 * 4) # Fallback if person is lost
 
+    make_decision()
     # simple logic (1 sign)
     try:
+        # angle = joint_rules["1"][0][0]
+        angle = -90
+        print(f"Angle of a joint: {angle}")
+        war1 = current_angles['12-14'] < (angle + ANGLE_THRESHOLD) and current_angles['12-14'] > (angle - ANGLE_THRESHOLD)
+        war2 = current_angles['14-16'] < (angle + ANGLE_THRESHOLD) and current_angles['14-16'] > (angle - ANGLE_THRESHOLD)
+        if (war1) and (war2):
+            predicted_gesture = "Sign 1"
+            print("Sign predicted!")
         print(f"ANGLES 12-14: {current_angles['12-14']}\n")
         print(f"ANGLES 14-16: {current_angles['14-16']}\n")
     except:
@@ -66,10 +97,8 @@ while cap.isOpened():
      
 
         
-    # Display prediction on screen
     cv2.putText(frame, predicted_gesture, (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
     cv2.imshow('Pi Gesture Recognition', frame)
-    
     if cv2.waitKey(1) & 0xFF == 27:
         break
 
